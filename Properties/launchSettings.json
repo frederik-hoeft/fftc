@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "gdtc": {
+      "commandName": "Project",
+      "commandLineArgs": "-l 12344 -f out.txt"
+    }
+  }
+}

@@ -8,9 +8,10 @@ This utility was created as a fast, simple, cross platform alternative to netcat
 ### Installation
 
 1. Go to the [Releases page](https://github.com/frederik-hoeft/fftc/releases) and download the latest binaries for your system.
-2. Unzip the folder using your favourite tool.
-3. Add the folder to your system path, so you will be able to access it from anywhere.
-4. (Linux and OSX only) You may need to make the binary executable using `chmod +x fftc`
+2. Unzip the binaries using your favourite tool.
+3. Rename the unzipped directory to `fftc/`
+4. Add the `fftc/` directory to your system path, so you will be able to execute `fftc` from anywhere on your system.
+5. (Linux and OSX only) You may need to make the binary executable using `chmod +x fftc`
 
 ---
 

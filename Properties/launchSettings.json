@@ -1,8 +1,8 @@
 {
   "profiles": {
-    "gdtc": {
+    "fftc": {
       "commandName": "Project",
-      "commandLineArgs": "-l 12344 -f out.txt"
+      "commandLineArgs": "-l 12344 -f asdf.deb"
     }
   }
 }

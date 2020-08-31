@@ -13,7 +13,7 @@ namespace fftc
         /// <summary>
         /// The current version of fftc in the following format: <Major>.<Month>-<Minor (Reset every month)>.Year
         /// </summary>
-        private const string VERSION = "v1.8-1.20";
+        private const string VERSION = "v1.8-2.20";
 
         /// <summary>
         /// The main entry point of the application.
@@ -116,7 +116,6 @@ namespace fftc
             socket.SendFile(filePath);
             socket.Shutdown(SocketShutdown.Both);
             socket.Disconnect(true);
-            socket.Close();
             Console.WriteLine("Done!");
         }
 
@@ -146,7 +145,7 @@ namespace fftc
             }
             string file = args[3];
             int port = Convert.ToInt32(args[1]);
-            IPAddress ipAddress = GetLocalIPAddress();
+            IPAddress ipAddress = IPAddress.Any;
             IPEndPoint local = new IPEndPoint(ipAddress, port);
             using Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             socket.Bind(local);
@@ -162,7 +161,15 @@ namespace fftc
             using FileStream fileStream = File.OpenWrite(Directory.GetCurrentDirectory() + "\\" + file);
             while (true)
             {
-                int sizeReceived = connection.Receive(buffer);
+                int sizeReceived;
+                try
+                {
+                    sizeReceived = connection.Receive(buffer);
+                }
+                catch (SocketException)
+                {
+                    break;
+                }
                 if (sizeReceived == 0)
                 {
                     break;
@@ -217,22 +224,6 @@ namespace fftc
                 "\n" +
                 "Listen for a file called \"myfile.zip\" at port 12344:\n" +
                 "fftc -l 12344 -f myfile.zip\n");
-        }
-
-        /// <summary>
-        /// Gets the <see cref="IPAddress"/> of the local network interface to listen on.
-        /// </summary>
-        private static IPAddress GetLocalIPAddress()
-        {
-            var host = Dns.GetHostEntry(Dns.GetHostName());
-            foreach (IPAddress ip in host.AddressList)
-            {
-                if (ip.AddressFamily == AddressFamily.InterNetwork && (ip.ToString().StartsWith("192.168") || ip.ToString().StartsWith("10.") || ip.ToString().Equals("127.0.0.1")))
-                {
-                    return ip;
-                }
-            }
-            throw new Exception("No IPv4 network adapters found!");
         }
     }
 }

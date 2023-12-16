@@ -5,7 +5,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 
-const string VERSION = "v8.0.0";
+const string VERSION = "v8.0.1";
 
 Console.WriteLine($"Welcome to Fast File Transfer Client {VERSION}");
 if (args.Length >= 1)
@@ -65,8 +65,7 @@ static void Send(string[] args)
     string file = args[4];
     string ip = args[1];
     int port = Convert.ToInt32(args[2]);
-    IPAddress? ipAddress = null;
-    try
+    if (!IPAddress.TryParse(ip, out IPAddress? ipAddress))
     {
         IPHostEntry entry = Dns.GetHostEntry(ip);
         IPAddress[] ipAddresses = entry.AddressList;
@@ -79,22 +78,9 @@ static void Send(string[] args)
             }
         }
     }
-    catch
-    {
-        try
-        {
-            ipAddress = IPAddress.Parse(ip);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine("Error: no route to host.");
-            Console.WriteLine(e);
-            return;
-        }
-    }
     if (ipAddress == null)
     {
-        Console.WriteLine("Error: no route to host.");
+        Console.WriteLine($"Error: could not host {ip}");
         return;
     }
     IPEndPoint connection = new(ipAddress, port);
@@ -165,8 +151,7 @@ static void Receive(string[] args)
     socket.Listen(16);
     Console.WriteLine("Listening on port " + local.Port.ToString());
     using Socket connection = socket.Accept();
-    IPEndPoint? remoteEndPoint = connection.RemoteEndPoint as IPEndPoint;
-    string remoteAddress = remoteEndPoint is null ? "unknown" : $"{remoteEndPoint.Address}:{remoteEndPoint.Port}";
+    string remoteAddress = connection.RemoteEndPoint is not IPEndPoint remoteEndPoint ? "unknown" : $"{remoteEndPoint.Address}:{remoteEndPoint.Port}";
     Console.WriteLine($"Connection from {remoteAddress}");
     byte[] buffer = new byte[65536];
     ulong rec = 0;

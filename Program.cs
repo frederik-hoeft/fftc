@@ -1,229 +1,217 @@
-﻿using System;
+﻿using fftc;
+using System;
+using System.Buffers;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 
-namespace fftc
+const string VERSION = "v8.0.0";
+
+Console.WriteLine($"Welcome to Fast File Transfer Client {VERSION}");
+if (args.Length >= 1)
 {
-    /// <summary>
-    /// Represents the main class of fftc.
-    /// </summary>
-    internal static class Program
+    switch (args[0])
     {
-        /// <summary>
-        /// The current version of fftc in the following format: <Major>.<Month>-<Minor (Reset every month)>.Year
-        /// </summary>
-        private const string VERSION = "v1.8-2.20";
+        case "-l":
+            Receive(args);
+            break;
 
-        /// <summary>
-        /// The main entry point of the application.
-        /// </summary>
-        /// <param name="args">The command line parameters.</param>
-        private static void Main(string[] args)
+        case "-c":
+        case "-s":
+            Send(args);
+            break;
+
+        default:
+            Usage();
+            break;
+    }
+}
+else
+{
+    Usage();
+}
+
+static void Usage() => Console.WriteLine(
+    $"""
+    Fast File Transfer Client {VERSION}
+    Usage:
+
+        Send a file to a specified ip and port:
+               fftc [-c|-s] <ip> <port> -f <filename>
+        Listen for a file at a specified port:
+               fftc -l <port> -f <filename>
+    
+    Examples:
+
+        Send a file called \"myfile.zip\" to 10.1.1.12, port 12344:
+        fftc -s 10.1.1.12 12344 -f myfile.zip
+
+        Listen for a file called \"myfile.zip\" at port 12344:
+        fftc -l 12344 -f myfile.zip
+    """);
+
+static void Send(string[] args)
+{
+    if (args.Length != 5)
+    {
+        Usage();
+        return;
+    }
+    if (!string.Equals(args[3], "-f", StringComparison.OrdinalIgnoreCase))
+    {
+        Usage();
+        return;
+    }
+    string file = args[4];
+    string ip = args[1];
+    int port = Convert.ToInt32(args[2]);
+    IPAddress? ipAddress = null;
+    try
+    {
+        IPHostEntry entry = Dns.GetHostEntry(ip);
+        IPAddress[] ipAddresses = entry.AddressList;
+        for (int i = 0; i < ipAddresses.Length; i++)
         {
-            Console.WriteLine("Welcome to Fast File Transfer Client " + VERSION);
-            if (args.Length >= 1)
+            if (ipAddresses[i].AddressFamily == AddressFamily.InterNetwork)
             {
-                switch (args[0])
-                {
-                    case "-l":
-                        Receive(args);
-                        break;
-
-                    case "-c":
-                    case "-s":
-                        Send(args);
-                        break;
-
-                    default:
-                        Usage();
-                        break;
-                }
+                ipAddress = ipAddresses[i];
+                break;
             }
-            else
-            {
-                Usage();
-            }
-        }
-
-        /// <summary>
-        /// Sends the specified file to the specified destination.
-        /// </summary>
-        /// <param name="args">
-        /// The array of command line arguments where:
-        ///     <list type="bullet">
-        ///         <item><c><paramref name="args"/>[0]</c> doesn't matter and can be <c>null</c>.</item>
-        ///         <item><c><paramref name="args"/>[1]</c> is the IPv4 address of the destination.</item>
-        ///         <item><c><paramref name="args"/>[2]</c> is the destination port.</item>
-        ///         <item><c><paramref name="args"/>[3]</c> currently must be <c>-f</c> to specify that a file is being transmitted (may add support for directory structures in the future).</item>
-        ///         <item><c><paramref name="args"/>[4]</c> is path of the file to be transmitted.</item>
-        ///     </list>
-        /// </param>
-        private static void Send(string[] args)
-        {
-            if (args.Length != 5)
-            {
-                Usage();
-                return;
-            }
-            if (!string.Equals(args[3], "-f", StringComparison.OrdinalIgnoreCase))
-            {
-                Usage();
-                return;
-            }
-            string file = args[4];
-            string ip = args[1];
-            int port = Convert.ToInt32(args[2]);
-            IPAddress ipAddress = null;
-            try
-            {
-                IPHostEntry entry = Dns.GetHostEntry(ip);
-                IPAddress[] ipAddresses = entry.AddressList;
-                for (int i = 0; i < ipAddresses.Length; i++)
-                {
-                    if (ipAddresses[i].AddressFamily == AddressFamily.InterNetwork)
-                    {
-                        ipAddress = ipAddresses[i];
-                        break;
-                    }
-                }
-            }
-            catch
-            {
-                Console.WriteLine("Error: no route to host.");
-                return;
-            }
-            if (ipAddress == null)
-            {
-                Console.WriteLine("Error: no route to host.");
-                return;
-            }
-            IPEndPoint connection = new IPEndPoint(ipAddress, port);
-            Console.WriteLine("Connecting to " + connection.Address);
-            using Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            try
-            {
-                socket.Connect(connection);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.ToString());
-                Console.WriteLine("Error: could not connect to peer.");
-                return;
-            }
-            string filePath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar + file;
-            Console.WriteLine("Sending " + ((ulong)new FileInfo(filePath).Length).ToHumanReadableFileSize(1) + " of data. This may take a while ...");
-            socket.SendFile(filePath);
-            socket.Shutdown(SocketShutdown.Both);
-            socket.Disconnect(true);
-            Console.WriteLine("Done!");
-        }
-
-        /// <summary>
-        /// Listens for a data at the specified port and writes it to the specified file.
-        /// </summary>
-        /// <param name="args">
-        /// The array of command line arguments where:
-        ///     <list type="bullet">
-        ///         <item><c><paramref name="args"/>[0]</c> doesn't matter and can be <c>null</c>.</item>
-        ///         <item><c><paramref name="args"/>[1]</c> is the local port to listen on.</item>
-        ///         <item><c><paramref name="args"/>[2]</c> currently must be <c>-f</c> to specify that a file is being received (may add support for directory structures in the future).</item>
-        ///         <item><c><paramref name="args"/>[3]</c> is the file the data will be written to.</item>
-        ///     </list>
-        /// </param>
-        private static void Receive(string[] args)
-        {
-            if (args.Length != 4)
-            {
-                Usage();
-                return;
-            }
-            if (!args[2].Equals("-f"))
-            {
-                Usage();
-                return;
-            }
-            string file = args[3];
-            int port = Convert.ToInt32(args[1]);
-            IPAddress ipAddress = IPAddress.Any;
-            IPEndPoint local = new IPEndPoint(ipAddress, port);
-            using Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            socket.Bind(local);
-            socket.Listen(16);
-            Console.WriteLine("Listening on port " + local.Port.ToString());
-            using Socket connection = socket.Accept();
-            IPEndPoint remoteEndPoint = (IPEndPoint)connection.RemoteEndPoint;
-            Console.WriteLine("Connection from " + remoteEndPoint.Address + ":" + remoteEndPoint.Port);
-            byte[] buffer = new byte[65536];
-            ulong rec = 0;
-
-            byte counter = 0;
-            using FileStream fileStream = File.OpenWrite(Directory.GetCurrentDirectory() + "\\" + file);
-            while (true)
-            {
-                int sizeReceived;
-                try
-                {
-                    sizeReceived = connection.Receive(buffer);
-                }
-                catch (SocketException)
-                {
-                    break;
-                }
-                if (sizeReceived == 0)
-                {
-                    break;
-                }
-                rec += (ulong)sizeReceived;
-                fileStream.Write(buffer, 0, sizeReceived);
-                counter++;
-                if (counter >= 16)
-                {
-                    counter = 0;
-                    Console.Write("\rReceived: " + rec.ToHumanReadableFileSize(1) + " ...");
-                    fileStream.Flush();
-                }
-            }
-            Console.Write("\rReceived: " + rec.ToHumanReadableFileSize(1) + " ...\n");
-            fileStream.Flush();
-            fileStream.Close();
-            try
-            {
-                connection.Shutdown(SocketShutdown.Both);
-                connection.Disconnect(true);
-                connection.Close();
-            }
-            catch (SocketException) { }
-            try
-            {
-                socket.Close();
-            }
-            catch (SocketException) { }
-            Console.WriteLine(rec.ToString() + " bytes written to " + file);
-            Console.WriteLine("Closed connection to " + remoteEndPoint.Address);
-        }
-
-        /// <summary>
-        /// Displays usage information
-        /// </summary>
-        private static void Usage()
-        {
-            Console.WriteLine("Fast File Transfer Client " + VERSION);
-            Console.WriteLine("\n" +
-                "Usage:\n" +
-                "\n" +
-                "Send a file to a specified ip and port:\n" +
-                "           fftc [-c|-s] <ip> <port> -f <filename>\n" +
-                "Listen for a file at a specified port:\n" +
-                "           fftc -l <port> -f <filename>\n" +
-                "\n" +
-                "Examples:\n" +
-                "\n" +
-                "Send a file called \"myfile.zip\" to 10.1.1.12, port 12344:\n" +
-                "fftc -s 10.1.1.12 12344 -f myfile.zip\n" +
-                "\n" +
-                "Listen for a file called \"myfile.zip\" at port 12344:\n" +
-                "fftc -l 12344 -f myfile.zip\n");
         }
     }
+    catch
+    {
+        try
+        {
+            ipAddress = IPAddress.Parse(ip);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error: no route to host.");
+            Console.WriteLine(e);
+            return;
+        }
+    }
+    if (ipAddress == null)
+    {
+        Console.WriteLine("Error: no route to host.");
+        return;
+    }
+    IPEndPoint connection = new(ipAddress, port);
+    Console.WriteLine("Connecting to " + connection.Address);
+    using Socket socket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+    try
+    {
+        socket.Connect(connection);
+    }
+    catch (Exception e)
+    {
+        Console.WriteLine(e.ToString());
+        Console.WriteLine("Error: could not connect to peer.");
+        return;
+    }
+    string filePath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar + file;
+    Console.WriteLine("Sending " + ((ulong)new FileInfo(filePath).Length).ToHumanReadableFileSize(1) + " of data. This may take a while ...");
+    using NetworkStream stream = new(socket, FileAccess.Write);
+    using Stream fileStream = File.OpenRead(filePath);
+    CopyTo(fileStream, stream, 65536);
+    Console.WriteLine("Done!");
+}
+
+static void CopyTo(Stream source, Stream destination, int bufferSize)
+{
+    byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+    try
+    {
+        ulong totalBytesSent = 0;
+        int bytesRead;
+        int counter = 0;
+        while ((bytesRead = source.Read(buffer, 0, buffer.Length)) != 0)
+        {
+            destination.Write(buffer, 0, bytesRead);
+            totalBytesSent += (ulong)bytesRead;
+            if (counter % 16 == 0)
+            {
+                counter = 0;
+                Console.Write("\rSent: " + totalBytesSent.ToHumanReadableFileSize(1) + " ...");
+            }
+        }
+        Console.WriteLine("\rReceived: " + totalBytesSent.ToHumanReadableFileSize(1) + " ...");
+    }
+    finally
+    {
+        ArrayPool<byte>.Shared.Return(buffer);
+    }
+}
+
+static void Receive(string[] args)
+{
+    if (args.Length != 4)
+    {
+        Usage();
+        return;
+    }
+    if (!args[2].Equals("-f"))
+    {
+        Usage();
+        return;
+    }
+    string file = args[3];
+    int port = Convert.ToInt32(args[1]);
+    IPAddress ipAddress = IPAddress.Any;
+    IPEndPoint local = new(ipAddress, port);
+    using Socket socket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+    socket.Bind(local);
+    socket.Listen(16);
+    Console.WriteLine("Listening on port " + local.Port.ToString());
+    using Socket connection = socket.Accept();
+    IPEndPoint? remoteEndPoint = connection.RemoteEndPoint as IPEndPoint;
+    string remoteAddress = remoteEndPoint is null ? "unknown" : $"{remoteEndPoint.Address}:{remoteEndPoint.Port}";
+    Console.WriteLine($"Connection from {remoteAddress}");
+    byte[] buffer = new byte[65536];
+    ulong rec = 0;
+    byte counter = 0;
+    using FileStream fileStream = File.OpenWrite(Directory.GetCurrentDirectory() + "\\" + file);
+    while (true)
+    {
+        int sizeReceived;
+        try
+        {
+            sizeReceived = connection.Receive(buffer);
+        }
+        catch (SocketException)
+        {
+            break;
+        }
+        if (sizeReceived == 0)
+        {
+            break;
+        }
+        rec += (ulong)sizeReceived;
+        fileStream.Write(buffer, 0, sizeReceived);
+        counter++;
+        if (counter >= 16)
+        {
+            counter = 0;
+            Console.Write($"\rReceived: {rec.ToHumanReadableFileSize(1)} ...");
+            fileStream.Flush();
+        }
+    }
+    Console.WriteLine($"\rReceived: {rec.ToHumanReadableFileSize(1)} ...");
+    fileStream.Flush();
+    fileStream.Close();
+    try
+    {
+        connection.Shutdown(SocketShutdown.Both);
+        connection.Disconnect(true);
+        connection.Close();
+    }
+    catch (SocketException) { }
+    try
+    {
+        socket.Close();
+    }
+    catch (SocketException) { }
+    Console.WriteLine($"{rec} bytes written to {file}");
+    Console.WriteLine($"Closed connection to {remoteAddress}");
 }

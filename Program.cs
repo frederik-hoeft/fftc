@@ -5,7 +5,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 
-const string VERSION = "v8.0.1";
+const string VERSION = "v8.0.2";
 
 Console.WriteLine($"Welcome to Fast File Transfer Client {VERSION}");
 if (args.Length >= 1)
@@ -101,7 +101,6 @@ static void Send(string[] args)
     using NetworkStream stream = new(socket, FileAccess.Write);
     using Stream fileStream = File.OpenRead(filePath);
     CopyTo(fileStream, stream, 65536);
-    Console.WriteLine("Done!");
 }
 
 static void CopyTo(Stream source, Stream destination, int bufferSize)
@@ -122,7 +121,7 @@ static void CopyTo(Stream source, Stream destination, int bufferSize)
                 Console.Write("\rSent: " + totalBytesSent.ToHumanReadableFileSize(1) + " ...");
             }
         }
-        Console.WriteLine("\rReceived: " + totalBytesSent.ToHumanReadableFileSize(1) + " ...");
+        Console.WriteLine("\rSent: " + totalBytesSent.ToHumanReadableFileSize(1) + " ... done!");
     }
     finally
     {
